@@ -1,6 +1,6 @@
 # 🤖 AI-Powered Whack-a-Mole 🐼🎯
 
-![Game Screenshot](image/ai-whack-a-mole-game-index.png)
+![Game Screenshot](images/ai-whack-a-mole-game-index.png)
 
 🚀 **Live Play:**  
 👉 [🎮 Click Here to Play Now](https://ai-whack-a-mole-game.vercel.app/)
