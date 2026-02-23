@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Whack-a-Mole</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{
+            font-family:Arial, sans-serif;
+            background:linear-gradient(135deg,#667eea,#764ba2);
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            min-height:100vh;
+            padding:20px
+        }
+        .game-container{
+            background:white;
+            border-radius:20px;
+            padding:20px;
+            max-width:500px;
+            width:100%;
+            box-shadow:0 10px 40px rgba(0,0,0,.3)
+        }
+        h1{text-align:center;color:#667eea;margin-bottom:15px}
+        .stats{
+            display:flex;
+            justify-content:space-around;
+            gap:8px;
+            margin-bottom:15px;
+            flex-wrap:wrap
+        }
+        .stat{
+            background:#f0f0f0;
+            padding:10px;
+            border-radius:8px;
+            text-align:center;
+            flex:1
+        }
+        .stat-label{font-size:.8em;color:#555}
+        .stat-value{font-size:1.2em;font-weight:bold;color:#667eea}
+        .grid{
+            display:grid;
+            grid-template-columns:repeat(3,1fr);
+            gap:10px;
+            margin-bottom:20px
+        }
+        .hole{
+            aspect-ratio:1;
+            background:#8b4513;
+            border-radius:50%;
+            position:relative;
+            overflow:hidden;
+            cursor:pointer
+        }
+        .mole{
+            position:absolute;
+            width:70%;
+            height:70%;
+            background:#d2691e;
+            border-radius:50%;
+            bottom:-100%;
+            left:50%;
+            transform:translateX(-50%);
+            transition:bottom .2s ease;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:2em
+        }
+        .mole::before{content:'🐹'}
+        .mole.up{bottom:10%}
+        .controls{text-align:center}
+        .btn{
+            padding:10px 30px;
+            background:#667eea;
+            color:white;
+            border:none;
+            border-radius:30px;
+            font-size:1em;
+            cursor:pointer
+        }
+        .message{
+            text-align:center;
+            font-weight:bold;
+            min-height:30px;
+            margin:10px 0
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <h1>🐼 AI Whack-a-Mole 🤖</h1>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-label">Score</div>
+            <div class="stat-value" id="score">0</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Time</div>
+            <div class="stat-value" id="timer">30</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Avg Reaction (ms)</div>
+            <div class="stat-value" id="avgReaction">0</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Accuracy %</div>
+            <div class="stat-value" id="accuracy">0%</div>
+        </div>
+    </div>
+
+    <div class="message" id="message"></div>
+
+    <div class="grid">
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+        <div class="hole"><div class="mole"></div></div>
+    </div>
+
+    <div class="controls">
+        <button class="btn" id="startBtn">Start Game</button>
+    </div>
+</div>
+
+<script>
+const moles = document.querySelectorAll('.mole');
+const scoreDisplay = document.getElementById('score');
+const timerDisplay = document.getElementById('timer');
+const avgDisplay = document.getElementById('avgReaction');
+const accuracyDisplay = document.getElementById('accuracy');
+const startBtn = document.getElementById('startBtn');
+const message = document.getElementById('message');
+
+let score = 0;
+let timeLeft = 30;
+let gameActive = false;
+let lastHole = -1;
+let moleAppearTime = 0;
+let reactionTimes = [];
+let totalClicks = 0;
+let moleSpeedMin = 500;
+let moleSpeedMax = 1200;
+
+function randomHole(){
+    const holes = Array.from(moles);
+    let idx;
+    do{
+        idx = Math.floor(Math.random()*holes.length);
+    }while(idx === lastHole);
+    lastHole = idx;
+    return holes[idx];
+}
+
+function popUp(){
+    if(!gameActive) return;
+
+    const mole = randomHole();
+    const time = Math.random()*(moleSpeedMax-moleSpeedMin)+moleSpeedMin;
+
+    moleAppearTime = Date.now();
+    mole.classList.add('up');
+
+    setTimeout(()=>{
+        mole.classList.remove('up');
+        if(gameActive) popUp();
+    },time);
+}
+
+function shouldEscape(reactionTime){
+    if(reactionTime<250) return Math.random()<0.8;
+    if(reactionTime<500) return Math.random()<0.5;
+    return Math.random()<0.1;
+}
+
+function whack(e){
+    if(!gameActive) return;
+    if(!e.target.classList.contains('up')) return;
+
+    totalClicks++;
+    const reactionTime = Date.now()-moleAppearTime;
+
+    if(shouldEscape(reactionTime)){
+        message.textContent="😈 Mole Escaped!";
+        e.target.classList.remove('up');
+        return;
+    }
+
+    score++;
+    reactionTimes.push(reactionTime);
+    scoreDisplay.textContent=score;
+    updateStats();
+
+    adaptDifficulty();
+
+    e.target.classList.remove('up');
+}
+
+function updateStats(){
+    const avg = reactionTimes.reduce((a,b)=>a+b,0)/reactionTimes.length || 0;
+    avgDisplay.textContent=Math.round(avg);
+
+    const accuracy = (score/totalClicks)*100 || 0;
+    accuracyDisplay.textContent=accuracy.toFixed(1)+"%";
+}
+
+function adaptDifficulty(){
+    const avg = reactionTimes.reduce((a,b)=>a+b,0)/reactionTimes.length;
+    if(avg<300){
+        moleSpeedMin=300;
+        moleSpeedMax=800;
+    }
+    else if(avg<500){
+        moleSpeedMin=400;
+        moleSpeedMax=1000;
+    }
+    else{
+        moleSpeedMin=500;
+        moleSpeedMax=1200;
+    }
+}
+
+function startGame(){
+    score=0;
+    timeLeft=30;
+    reactionTimes=[];
+    totalClicks=0;
+    gameActive=true;
+    scoreDisplay.textContent=0;
+    timerDisplay.textContent=30;
+    avgDisplay.textContent=0;
+    accuracyDisplay.textContent="0%";
+    message.textContent="";
+    startBtn.disabled=true;
+
+    popUp();
+
+    const timer = setInterval(()=>{
+        timeLeft--;
+        timerDisplay.textContent=timeLeft;
+        if(timeLeft<=0){
+            clearInterval(timer);
+            gameActive=false;
+            startBtn.disabled=false;
+            message.textContent="🏆 Game Over!";
+        }
+    },1000);
+}
+
+startBtn.addEventListener('click',startGame);
+moles.forEach(m=>{
+    m.addEventListener('click',whack);
+});
+</script>
+
+</body>
+</html>
